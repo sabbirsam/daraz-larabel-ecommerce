@@ -50,4 +50,21 @@ class ProductVariant extends Model
             }
         );
     }
+
+    protected function title(): CastAttribute
+    {
+        return CastAttribute::make(
+            get: function () {
+                if (! empty($this->attributes) && is_array($this->attributes)) {
+                    return implode(', ', array_map(
+                        fn ($k, $v) => is_numeric($k) ? $v : "{$v}",
+                        array_keys($this->attributes),
+                        array_values($this->attributes)
+                    ));
+                }
+                return $this->sku;
+            }
+        );
+    }
 }
+

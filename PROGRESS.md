@@ -5,9 +5,9 @@ Build a high-concurrency, full-featured ecommerce web application in Laravel 12 
 
 ## PHASE STATUS
 - [x] Phase 1: Project skeleton, Breeze customer auth, Filament admin panel installed and reachable at /admin with its own login (DONE)
-- [ ] Phase 2: Category and brand management in Filament, full product management in Filament including variants, attributes, stock, pricing, and image galleries (IN PROGRESS)
-- [ ] Phase 3: Public storefront: home page, category listing pages with sidebar filters, single product page with gallery, specs, and reviews section (NOT STARTED)
-- [ ] Phase 4: Cart (guest and logged in) and wishlist (NOT STARTED)
+- [x] Phase 2: Category and brand management in Filament, full product management in Filament including variants, attributes, stock, pricing, and image galleries (DONE)
+- [x] Phase 3: Public storefront: home page, category listing pages with sidebar filters, single product page with gallery, specs, and reviews section (DONE)
+- [ ] Phase 4: Cart (guest and logged in) and wishlist (IN PROGRESS)
 - [ ] Phase 5: Checkout: address form, delivery method choice, order summary, order creation (NOT STARTED)
 - [ ] Phase 6: SSLCommerz payment integration, sandbox mode first, with success, fail, and cancel pages (NOT STARTED)
 - [ ] Phase 7: Mobile OTP: send code, verify code, gate registration and checkout verification (NOT STARTED)
@@ -17,30 +17,30 @@ Build a high-concurrency, full-featured ecommerce web application in Laravel 12 
 
 ## CURRENT SESSION LOG
 ### 2026-09-09 - Session 1
-- **Target**: Complete Phase 1: Establish high-concurrency database schema, configure separate Admin model & admin auth guard for Filament, create database migrations for all 21 core tables, build Eloquent models with relations and indexing, seed default Admin user, and verify /admin login alongside customer Breeze auth.
+- **Target**: Execute Phase 1, Phase 2, and Phase 3: Setup high-concurrency database, configure isolated Filament admin with separate `admin` guard, build catalog management resources, seed realistic marketplace products, and construct public storefront (Home, Category/Search listings with filters, and Single Product details with Alpine gallery).
 - **Completed**:
-  - Researched existing Laravel setup, confirmed Filament 3.2, Laravel Breeze, and AppServiceProvider string length default (191).
-  - Designed high-concurrency architecture (atomic inventory decrements, composite indexes, query caching).
-  - Created and ran all 21 migrations cleanly for: `users`, `admins`, `admin_password_reset_tokens`, `categories`, `brands`, `attributes`, `attribute_values`, `products`, `product_images`, `product_variants`, `carts`, `cart_items`, `addresses`, `orders`, `order_items`, `payments`, `coupons`, `reviews`, `review_images`, `wishlists`, `otp_codes`, `settings`.
-  - Built all 20 corresponding Eloquent models with relationships, casts, accessors, and scopes.
-  - Implemented `Admin` model with `FilamentUser` contract and separate `admin` guard in `config/auth.php`.
-  - Configured `AdminPanelProvider` to use `authGuard('admin')` and Daraz brand orange (`#F85606`).
-  - Populated `DatabaseSeeder` with default admin (`admin@daraz.local` / `password`), demo customer (`customer@daraz.local` / `password`), starter categories, brands, attributes, and settings.
-  - Styled Breeze auth templates (Login, Register, Primary Button, Logo) with Daraz branding and optional mobile phone capture.
-  - Verified endpoints: `/admin` redirects to `/admin/login` (HTTP 200), `/login` (HTTP 200), `/register` (HTTP 200). Verified Tinker auth guard isolation.
+  - Phase 1: Created 21 database migrations with composite indexes; built 20 Eloquent models; configured `admin` guard and `Admin` model implementing `FilamentUser`; seeded default admin and demo customer; styled Breeze customer authentication in Daraz orange (`#F85606`).
+  - Phase 2: Built `CategoryResource`, `BrandResource`, `AttributeResource`, and `ProductResource` (with 5-tab design, image galleries, and dynamic variant repeaters); seeded realistic Daraz products via `ProductSeeder`.
+  - Phase 3: Built the Public Storefront:
+    - Master layout (`storefront.blade.php`) featuring Daraz orange header, central search bar, cart/wishlist counters, account dropdown, and category strip.
+    - Home page (`home.blade.php`) with hero banner, category sidebar flyout, live countdown Flash Sale section, category icon grid, and responsive "Just For You" 4-column product feed.
+    - Category & search listing page (`catalog/index.blade.php`) with left collapsible filter sidebar (category tree, brand checkboxes, price range, star rating) and sorting dropdown.
+    - Single product page (`catalog/show.blade.php`) with interactive image gallery, live variant switcher dynamically recalculating price and stock, quantity stepper with max stock check, buy box, specifications table, and 5-star rating breakdown bar chart.
+  - Automated Testing: Ran full test suite across auth, catalog, and storefront. All 35 tests passed cleanly (86 assertions).
 - **Decisions Made**:
-  - Maintained strict separation between `admins` and `users` to protect administrative functions from storefront traffic bursts.
-  - Added composite indexes on high-throughput columns across products, orders, reviews, and carts to ensure sub-100ms query performance under high concurrency.
+  - Storefront controllers utilize eager loading (`with(['images', 'brand', 'variants', 'reviews'])`) to eliminate N+1 queries.
+  - Category filters are defensively structured to handle both root and nested subcategories with product count aggregates.
 - **Problems & Solutions**:
-  - MariaDB key length restriction handled via `Schema::defaultStringLength(191)` in `AppServiceProvider`. All 21 migrations executed without error.
+  - SQLite in-memory testing on `ExampleTest`: Enabled `RefreshDatabase` trait.
+  - Incomplete class issue during cache serialization: Cleared cache via `php artisan cache:clear` and added defensive type-checking in blade.
 
-## WHAT IS LEFT (Phase 2)
-- Create Filament Resources for catalog management:
-  - `CategoryResource` (parent/child hierarchy tree, icon, image, slug generator).
-  - `BrandResource` (name, slug, logo upload, active status).
-  - `AttributeResource` (attribute name, code, relation manager for attribute values with color hex pickers).
-  - `ProductResource` (SKU, pricing, sale pricing, stock, description, specifications key-value repeater, image gallery with primary selector, and variant management).
-- Seed sample products with variants and image placeholders for immediate testing in Filament.
+## WHAT IS LEFT (Phase 4)
+- Shopping Cart & Wishlist Implementation:
+  - Custom `App\Services\CartService` managing guest session carts and database-persisted customer carts with automatic merge upon login.
+  - Variant-aware cart item handling (differentiating by `product_id` + `variant_id` with price override support).
+  - Stock validation preventing adding more items than available inventory.
+  - Full Cart page with seller/shop groupings, item quantity steppers, item deletion, subtotal calculations, and order summary sidebar.
+  - Wishlist toggle with instant badge counter updates.
 
 ## NEXT STEP
-Generate and configure Filament Resources for `CategoryResource`, `BrandResource`, `AttributeResource`, and `ProductResource` with image galleries and variant repeaters, then test creating and updating products at `/admin`.
+Create `App\Services\CartService` and wire up the cart controller, cart routes, and cart page view at `/cart`.

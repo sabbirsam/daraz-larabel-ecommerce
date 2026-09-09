@@ -2,11 +2,13 @@
 
 namespace Database\Seeders;
 
+use App\Models\Address;
 use App\Models\Admin;
 use App\Models\Attribute;
 use App\Models\AttributeValue;
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\Coupon;
 use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -34,7 +36,7 @@ class DatabaseSeeder extends Seeder
         );
 
         // 2. Seed Demo Customer
-        User::updateOrCreate(
+        $customer = User::updateOrCreate(
             ['email' => 'customer@daraz.local'],
             [
                 'name' => 'Demo Customer',
@@ -44,6 +46,56 @@ class DatabaseSeeder extends Seeder
                 'status' => 'active',
             ]
         );
+
+        // Seed Customer Default Address
+        Address::updateOrCreate(
+            ['user_id' => $customer->id, 'phone' => '01700000000'],
+            [
+                'name' => 'Demo Customer',
+                'division' => 'Dhaka',
+                'district' => 'Dhaka',
+                'upazila' => 'Dhanmondi',
+                'address_line' => 'House 42, Road 7, Dhanmondi R/A',
+                'is_default_shipping' => true,
+                'is_default_billing' => true,
+                'type' => 'home',
+            ]
+        );
+
+        // Seed Sample Daraz Vouchers / Coupons
+        $coupons = [
+            [
+                'code' => 'DARAZ10',
+                'type' => 'percentage',
+                'value' => 10.00,
+                'min_spend' => 500.00,
+                'max_discount' => 500.00,
+                'usage_limit' => 1000,
+                'is_active' => true,
+            ],
+            [
+                'code' => 'SAVE100',
+                'type' => 'fixed',
+                'value' => 100.00,
+                'min_spend' => 1000.00,
+                'max_discount' => 100.00,
+                'usage_limit' => 500,
+                'is_active' => true,
+            ],
+            [
+                'code' => 'DARAZ500',
+                'type' => 'fixed',
+                'value' => 500.00,
+                'min_spend' => 5000.00,
+                'max_discount' => 500.00,
+                'usage_limit' => 200,
+                'is_active' => true,
+            ],
+        ];
+
+        foreach ($coupons as $coupon) {
+            Coupon::updateOrCreate(['code' => $coupon['code']], $coupon);
+        }
 
         // 3. Seed Default Store Settings
         $settings = [
@@ -135,5 +187,8 @@ class DatabaseSeeder extends Seeder
         foreach ($brands as $brand) {
             Brand::firstOrCreate(['slug' => $brand['slug']], ['name' => $brand['name'], 'is_active' => true]);
         }
+
+        // 7. Seed Sample Products with Variants & Specs
+        $this->call(ProductSeeder::class);
     }
 }
