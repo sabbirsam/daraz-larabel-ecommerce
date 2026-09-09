@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Address;
 use App\Models\Coupon;
 use App\Models\Order;
+use App\Models\Payment;
 use App\Models\Setting;
 use App\Services\CartService;
 use App\Services\OrderService;
+use App\Services\Payment\PaymentManager;
 use Exception;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,7 +21,8 @@ class CheckoutController extends Controller
 {
     public function __construct(
         protected CartService $cartService,
-        protected OrderService $orderService
+        protected OrderService $orderService,
+        protected PaymentManager $paymentManager
     ) {}
 
     public function index(): View|RedirectResponse
@@ -31,6 +34,13 @@ class CheckoutController extends Controller
         }
 
         $user = Auth::user();
+
+        // Mobile Phone Verification Gate
+        if ($user->phone && ! $user->phone_verified_at) {
+            return redirect()->route('verification.phone')
+                ->with('warning', 'Please verify your mobile phone number before proceeding to checkout.');
+        }
+
         $addresses = $user->addresses()->orderByDesc('is_default_shipping')->get();
         $selectedAddress = $addresses->firstWhere('is_default_shipping', true) ?? $addresses->first();
 
@@ -91,6 +101,13 @@ class CheckoutController extends Controller
         ]);
 
         $user = Auth::user();
+
+        // Mobile Phone Verification Gate
+        if ($user->phone && ! $user->phone_verified_at) {
+            return redirect()->route('verification.phone')
+                ->with('warning', 'Please verify your mobile phone number before placing an order.');
+        }
+
         $addressId = $request->input('address_id');
 
         // If user submitted new inline address
@@ -111,12 +128,41 @@ class CheckoutController extends Controller
         }
 
         try {
+            $paymentMethod = $request->input('payment_method');
+
             $order = $this->orderService->placeOrder($user, [
                 'address_id' => $addressId,
                 'delivery_method' => $request->input('delivery_method'),
-                'payment_method' => $request->input('payment_method'),
+                'payment_method' => $paymentMethod,
                 'customer_notes' => $request->input('customer_notes'),
                 'billing_address_same' => true,
+            ]);
+
+            if ($paymentMethod === 'sslcommerz') {
+                $gateway = $this->paymentManager->resolve('sslcommerz');
+                $init = $gateway->initiate($order);
+
+                Payment::create([
+                    'order_id' => $order->id,
+                    'gateway' => 'sslcommerz',
+                    'transaction_id' => $init['tran_id'],
+                    'amount' => $order->total,
+                    'currency' => 'BDT',
+                    'status' => 'initiated',
+                    'payload' => $init['payload'] ?? null,
+                ]);
+
+                return redirect()->away($init['redirect_url']);
+            }
+
+            // Cash on Delivery (COD) payment tracking
+            Payment::create([
+                'order_id' => $order->id,
+                'gateway' => 'cod',
+                'transaction_id' => null,
+                'amount' => $order->total,
+                'currency' => 'BDT',
+                'status' => 'pending',
             ]);
 
             return redirect()->route('checkout.success', $order->order_number)

@@ -5,6 +5,7 @@ use App\Http\Controllers\Storefront\AddressController;
 use App\Http\Controllers\Storefront\CartController;
 use App\Http\Controllers\Storefront\CheckoutController;
 use App\Http\Controllers\Storefront\HomeController;
+use App\Http\Controllers\Storefront\PaymentController;
 use App\Http\Controllers\Storefront\ProductController;
 use App\Http\Controllers\Storefront\WishlistController;
 use Illuminate\Support\Facades\Route;
@@ -20,6 +21,13 @@ Route::post('/cart/add', [CartController::class, 'add'])->name('cart.add');
 Route::patch('/cart/item/{id}', [CartController::class, 'update'])->name('cart.update');
 Route::delete('/cart/item/{id}', [CartController::class, 'remove'])->name('cart.remove');
 Route::post('/cart/clear', [CartController::class, 'clear'])->name('cart.clear');
+
+// SSLCommerz Payment Gateway Routes
+Route::get('/payment/sslcommerz/sandbox-simulator/{orderNumber}', [PaymentController::class, 'simulator'])->name('payment.sslcommerz.simulator');
+Route::match(['get', 'post'], '/payment/sslcommerz/success', [PaymentController::class, 'success'])->name('payment.sslcommerz.success');
+Route::match(['get', 'post'], '/payment/sslcommerz/fail', [PaymentController::class, 'fail'])->name('payment.sslcommerz.fail');
+Route::match(['get', 'post'], '/payment/sslcommerz/cancel', [PaymentController::class, 'cancel'])->name('payment.sslcommerz.cancel');
+Route::post('/payment/sslcommerz/ipn', [PaymentController::class, 'ipn'])->name('payment.sslcommerz.ipn');
 
 // Customer Protected Routes
 Route::middleware('auth')->group(function () {

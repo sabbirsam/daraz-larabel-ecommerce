@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\Otp\OtpService;
+use Exception;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,6 +17,10 @@ use Illuminate\View\View;
 
 class RegisteredUserController extends Controller
 {
+    public function __construct(
+        protected OtpService $otpService
+    ) {}
+
     /**
      * Display the registration view.
      */
@@ -47,6 +53,17 @@ class RegisteredUserController extends Controller
         event(new Registered($user));
 
         Auth::login($user);
+
+        if ($user->phone) {
+            try {
+                $this->otpService->generate($user->phone, 'registration');
+                return redirect()->route('verification.phone')
+                    ->with('success', "Registration successful! A 6-digit verification code has been sent to {$user->phone}.");
+            } catch (Exception $e) {
+                return redirect()->route('verification.phone')
+                    ->with('error', $e->getMessage());
+            }
+        }
 
         return redirect(route('dashboard', absolute: false));
     }

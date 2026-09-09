@@ -9,8 +9,8 @@ Build a high-concurrency, full-featured ecommerce web application in Laravel 12 
 - [x] Phase 3: Public storefront: home page, category listing pages with sidebar filters, single product page with gallery, specs, and reviews section (DONE)
 - [x] Phase 4: Cart (guest and logged in) and wishlist (DONE)
 - [x] Phase 5: Checkout: address form, delivery method choice, order summary, order creation (DONE)
-- [ ] Phase 6: SSLCommerz payment integration, sandbox mode first, with success, fail, and cancel pages (NOT STARTED)
-- [ ] Phase 7: Mobile OTP: send code, verify code, gate registration and checkout verification (NOT STARTED)
+- [x] Phase 6: SSLCommerz payment integration, sandbox mode first, with success, fail, and cancel pages (DONE)
+- [x] Phase 7: Mobile OTP: send code, verify code, gate registration and checkout verification (DONE)
 - [ ] Phase 8: Order management in Filament (status workflow, invoice view) and customer order history (NOT STARTED)
 - [ ] Phase 9: Reviews and star ratings tied to verified purchases (NOT STARTED)
 - [ ] Phase 10: Coupons, search bar with live results, and final responsive polish (NOT STARTED)
@@ -67,13 +67,71 @@ Build a high-concurrency, full-featured ecommerce web application in Laravel 12 
 - **Problems & Solutions**:
   - Eloquent model property collision: `$this->attributes` in `ProductVariant` collided with Eloquent's internal attributes array, solved by accessing the JSON column directly via cast parameter `get: fn ($value, array $attributes) => ...`.
 
-## WHAT IS LEFT (Phase 6)
-- SSLCommerz Payment Gateway Integration:
-  - Create `PaymentGatewayInterface` contract so gateways (SSLCommerz, Stripe) can be swapped or added without changing checkout code.
-  - Create `SSLCommerzService` with sandbox mode credentials, transaction initialization, redirect URLs, and IPN / callback verification.
-  - Implement payment callback routes (`/payment/sslcommerz/success`, `/payment/sslcommerz/fail`, `/payment/sslcommerz/cancel`, `/payment/sslcommerz/ipn`).
-  - Update `orders` and `payments` tables with transaction ID, card/account type, and validation status upon callback.
-  - Dedicated Payment Status view pages (Success, Failure, Cancellation).
+### 2026-09-09 - Session 3
+- **Target**: Execute Phase 6 (SSLCommerz Payment Gateway Integration, Sandbox Mode, Multi-Gateway Architecture, Callbacks, and Status Pages).
+- **Completed**:
+  - Configured `config/sslcommerz.php` with credentials, API domains, endpoints, and sandbox toggle.
+  - Created `App\Contracts\PaymentGatewayInterface` contract so gateways (SSLCommerz, Stripe) can be swapped or added without modifying checkout business logic.
+  - Created `App\Services\Payment\SSLCommerzPaymentGateway` implementing `PaymentGatewayInterface`:
+    - Session initiation via SSLCommerz `gwprocess/v4/api.php` with customer, shipping, and item metadata.
+    - Automatic graceful sandbox fallback to local sandbox simulator for offline / zero-network development and testing.
+    - Secure transaction verification via SSLCommerz validator API.
+  - Created `App\Services\Payment\PaymentManager` for dynamic gateway resolution.
+  - Built `App\Http\Controllers\Storefront\PaymentController` with full lifecycle endpoints:
+    - `/payment/sslcommerz/sandbox-simulator/{orderNumber}` (Interactive sandbox portal with bKash, Nagad, Card, and failure/cancellation triggers)
+    - `/payment/sslcommerz/success` (Verifies validation ID, marks payment `completed`, and order `paid` / `processing`)
+    - `/payment/sslcommerz/fail` (Marks payment `failed` and order `failed`)
+    - `/payment/sslcommerz/cancel` (Marks payment `cancelled` and order `cancelled`)
+    - `/payment/sslcommerz/ipn` (Asynchronous Instant Payment Notification server-to-server webhook)
+  - Configured CSRF exception in `bootstrap/app.php` for `payment/sslcommerz/*`.
+  - Wired online payment initiation and COD payment tracking directly inside `CheckoutController::store()`.
+  - Created 4 dedicated Blade views:
+    - `resources/views/payment/simulator.blade.php` (SSLCommerz Sandbox Gateway simulator)
+    - `resources/views/payment/success.blade.php` (Payment confirmed receipt view)
+    - `resources/views/payment/fail.blade.php` (Payment failure alert with retry option)
+    - `resources/views/payment/cancel.blade.php` (Cancellation notice with resume option)
+  - Created automated test suite `tests/Feature/PaymentTest.php` (8/8 tests passed).
+  - Executed full project test suite: **All 61 tests passed (183 assertions)**.
+- **Decisions Made**:
+  - Designed an interface-driven payment architecture (`PaymentGatewayInterface` + `PaymentManager`) so international gateways (e.g. Stripe) can be attached with zero changes to checkout code.
+  - Provided an interactive local sandbox simulator to ensure robust testability even without an active internet connection.
+
+### 2026-09-09 - Session 4
+- **Target**: Execute Phase 7 (Mobile OTP Verification System: Provider-Swappable OtpService, Gating Registration & Checkout).
+- **Completed**:
+  - Created `config/sms.php` with driver configurations (log, twilio, bdsms) and OTP parameters (6 digits, 5-minute expiry, 5 max attempts, 60s cooldown).
+  - Created `App\Contracts\SmsGatewayInterface` and implementations:
+    - `LogSmsGateway`: Logs SMS and stores code in cache for seamless dev testing.
+    - `TwilioSmsGateway`: Pluggable live provider.
+  - Created `App\Services\Otp\OtpService`:
+    - 6-digit cryptographic PIN generation.
+    - 60-second rate-limiting cooldown preventing SMS spamming.
+    - 5-minute expiry tracking in `otp_codes` table.
+    - Brute-force lockout after 5 invalid attempts.
+    - Automatic `phone_verified_at` timestamping upon successful verification.
+  - Built `App\Http\Controllers\Auth\PhoneVerificationController` and routes:
+    - `GET /verify-phone`
+    - `POST /verify-phone`
+    - `POST /verify-phone/resend`
+  - Created `resources/views/auth/verify-phone.blade.php`:
+    - Daraz-themed verification card with phone icon, 6-digit styled input, Alpine.js 60s countdown timer, and developer sandbox helper badge.
+  - Gated Registration: Updated `RegisteredUserController` to generate OTP and route users to `/verify-phone` upon registering with a mobile phone.
+  - Gated Checkout: Updated `CheckoutController` to block unverified phone numbers from accessing `/checkout` or submitting orders, redirecting them to `/verify-phone`.
+  - Created `tests/Feature/OtpTest.php` (9/9 tests passed).
+  - Executed full project test suite: **All 70 tests passed (213 assertions)**.
+- **Decisions Made**:
+  - Implemented phone normalization to handle local vs international country-code formats (+880 vs 017).
+  - Configured user factory to default to verified phone status so previous feature tests execute with realistic customer states.
+
+## WHAT IS LEFT (Phase 8)
+- Order Management in Filament & Customer Order History:
+  - Create `OrderResource` in Filament Admin Panel (`app/Filament/Resources/OrderResource.php`):
+    - Table with order number, customer name, total amount, payment method badge, payment status badge, order status badge, and date.
+    - Status management actions: Pending &rarr; Processing &rarr; Shipped &rarr; Delivered &rarr; Cancelled.
+    - Order details view with itemized product cards, customer shipping/billing addresses, payment history, and printable invoice layout.
+  - Customer Order History in Public Storefront:
+    - Build customer orders page (`resources/views/account/orders/index.blade.php` and `show.blade.php`).
+    - Enable customers to track shipment progress, view invoices, and reorder.
 
 ## NEXT STEP
-Create `PaymentGatewayInterface` and implement `SSLCommerzService` with sandbox mode, callback routes, and payment status views for Phase 6.
+Create `OrderResource` in Filament and customer order history views in the storefront for Phase 8.
