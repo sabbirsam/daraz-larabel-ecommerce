@@ -14,6 +14,14 @@ export default {
             fontFamily: {
                 sans: ['Figtree', ...defaultTheme.fontFamily.sans],
             },
+            colors: {
+                daraz: {
+                    DEFAULT: '#F85606',
+                    hover: '#E04C04',
+                    light: '#FFF1EB',
+                    dark: '#C94303',
+                },
+            },
         },
     },
 
