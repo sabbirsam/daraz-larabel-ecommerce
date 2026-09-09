@@ -7,8 +7,8 @@ Build a high-concurrency, full-featured ecommerce web application in Laravel 12 
 - [x] Phase 1: Project skeleton, Breeze customer auth, Filament admin panel installed and reachable at /admin with its own login (DONE)
 - [x] Phase 2: Category and brand management in Filament, full product management in Filament including variants, attributes, stock, pricing, and image galleries (DONE)
 - [x] Phase 3: Public storefront: home page, category listing pages with sidebar filters, single product page with gallery, specs, and reviews section (DONE)
-- [ ] Phase 4: Cart (guest and logged in) and wishlist (IN PROGRESS)
-- [ ] Phase 5: Checkout: address form, delivery method choice, order summary, order creation (NOT STARTED)
+- [x] Phase 4: Cart (guest and logged in) and wishlist (DONE)
+- [x] Phase 5: Checkout: address form, delivery method choice, order summary, order creation (DONE)
 - [ ] Phase 6: SSLCommerz payment integration, sandbox mode first, with success, fail, and cancel pages (NOT STARTED)
 - [ ] Phase 7: Mobile OTP: send code, verify code, gate registration and checkout verification (NOT STARTED)
 - [ ] Phase 8: Order management in Filament (status workflow, invoice view) and customer order history (NOT STARTED)
@@ -34,13 +34,46 @@ Build a high-concurrency, full-featured ecommerce web application in Laravel 12 
   - SQLite in-memory testing on `ExampleTest`: Enabled `RefreshDatabase` trait.
   - Incomplete class issue during cache serialization: Cleared cache via `php artisan cache:clear` and added defensive type-checking in blade.
 
-## WHAT IS LEFT (Phase 4)
-- Shopping Cart & Wishlist Implementation:
-  - Custom `App\Services\CartService` managing guest session carts and database-persisted customer carts with automatic merge upon login.
-  - Variant-aware cart item handling (differentiating by `product_id` + `variant_id` with price override support).
-  - Stock validation preventing adding more items than available inventory.
-  - Full Cart page with seller/shop groupings, item quantity steppers, item deletion, subtotal calculations, and order summary sidebar.
-  - Wishlist toggle with instant badge counter updates.
+### 2026-09-09 - Session 2
+- **Target**: Execute Phase 4 (Shopping Cart & Wishlist) and Phase 5 (Checkout, Addresses, Delivery Methods, and Atomic Concurrency-Safe Order Placement).
+- **Completed**:
+  - Phase 4:
+    - Built `App\Services\CartService` managing guest session carts and database-persisted customer carts with automatic merge upon login.
+    - Built `App\Listeners\MergeCartOnLogin` event listener.
+    - Created `CartController` (index, add, update, remove, clear) and `WishlistController` (index, toggle, remove).
+    - Crafted Daraz-styled Cart page (`resources/views/cart/index.blade.php`) with seller grouping, quantity steppers, subtotal, and order summary.
+    - Built Wishlist page (`resources/views/wishlist/index.blade.php`).
+    - Tested with `tests/Feature/CartTest.php` (8/8 passed).
+  - Phase 5:
+    - Configured standard Bangladesh administrative dataset (`config/bangladesh.php`) with all 8 divisions and their major districts.
+    - Built high-concurrency `App\Services\OrderService`:
+      - Uses `DB::transaction()` with row-level exclusive locks (`lockForUpdate()`) on all cart products and variants to prevent race conditions or overselling during flash sales.
+      - Enforces strict inventory availability checks before creating order records.
+      - Conditionally and atomically decrements product and variant stocks.
+      - Generates authentic Daraz-style unique order numbers (`ORD-YYYYMMDD-XXXXXX`).
+      - Records frozen financial snapshots of items, coupons, shipping, and addresses.
+      - Empties cart and clears coupon session upon successful checkout.
+    - Built `App\Http\Controllers\Storefront\CheckoutController` and `AddressController`:
+      - Handles checkout view, address selection, inline address creation, delivery method switching (Standard vs Express), coupon application/removal, order creation, and order confirmation.
+    - Created Daraz checkout templates:
+      - `resources/views/checkout/index.blade.php`: 2-column layout, saved address radio list with "+ Add New Address" form, delivery options (Standard Free over ৳1500 vs Express), package review with thumbnails, Cash on Delivery (COD) and Online Payment (SSLCommerz) radio choices, promo voucher form with instant discount recalculation, and sticky order summary.
+      - `resources/views/checkout/success.blade.php`: Order confirmation invoice page displaying order number, estimated delivery window, delivery address, payment method, itemized list, and price breakdown.
+    - Seeded sample Daraz vouchers (`DARAZ10`, `SAVE100`, `DARAZ500`) and demo default customer address in `DatabaseSeeder.php`.
+    - Created comprehensive automated test suite `tests/Feature/CheckoutTest.php` (10/10 tests passed).
+    - Verified entire project test suite: **All 53 tests passed (149 assertions)**.
+- **Decisions Made**:
+  - Wrapped order placement in row-level database locks (`lockForUpdate()`) to guarantee zero overselling under high concurrency.
+  - Implemented dynamic Alpine.js reactive calculations for shipping fees and totals on the checkout view to provide instant feedback without page reloads.
+- **Problems & Solutions**:
+  - Eloquent model property collision: `$this->attributes` in `ProductVariant` collided with Eloquent's internal attributes array, solved by accessing the JSON column directly via cast parameter `get: fn ($value, array $attributes) => ...`.
+
+## WHAT IS LEFT (Phase 6)
+- SSLCommerz Payment Gateway Integration:
+  - Create `PaymentGatewayInterface` contract so gateways (SSLCommerz, Stripe) can be swapped or added without changing checkout code.
+  - Create `SSLCommerzService` with sandbox mode credentials, transaction initialization, redirect URLs, and IPN / callback verification.
+  - Implement payment callback routes (`/payment/sslcommerz/success`, `/payment/sslcommerz/fail`, `/payment/sslcommerz/cancel`, `/payment/sslcommerz/ipn`).
+  - Update `orders` and `payments` tables with transaction ID, card/account type, and validation status upon callback.
+  - Dedicated Payment Status view pages (Success, Failure, Cancellation).
 
 ## NEXT STEP
-Create `App\Services\CartService` and wire up the cart controller, cart routes, and cart page view at `/cart`.
+Create `PaymentGatewayInterface` and implement `SSLCommerzService` with sandbox mode, callback routes, and payment status views for Phase 6.

@@ -54,15 +54,17 @@ class ProductVariant extends Model
     protected function title(): CastAttribute
     {
         return CastAttribute::make(
-            get: function () {
-                if (! empty($this->attributes) && is_array($this->attributes)) {
+            get: function ($value, array $attributes) {
+                $raw = $attributes['attributes'] ?? null;
+                $decoded = is_string($raw) ? json_decode($raw, true) : (is_array($raw) ? $raw : []);
+                if (! empty($decoded) && is_array($decoded)) {
                     return implode(', ', array_map(
                         fn ($k, $v) => is_numeric($k) ? $v : "{$v}",
-                        array_keys($this->attributes),
-                        array_values($this->attributes)
+                        array_keys($decoded),
+                        array_values($decoded)
                     ));
                 }
-                return $this->sku;
+                return $attributes['sku'] ?? '';
             }
         );
     }
